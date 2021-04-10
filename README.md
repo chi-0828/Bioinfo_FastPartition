@@ -7,4 +7,4 @@
 >   **chi -b "bam file path" -v "vcf file path" -o "output file path"**
 
 ## Output information
->[best partition ID]: The best solution for parition problem
+>* best partition ID: The best solution for parition problem
