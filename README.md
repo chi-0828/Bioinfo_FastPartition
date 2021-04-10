@@ -9,5 +9,8 @@
 ## Output information
 >* **Minimum  movement**: The minimum cost for parition problem
 >* **Number of phased blocks**: Number of blocks detected during phasing  
->* **Largest block...**: Information of largest block  
+>* **Largest block...**: Information of largest block 
 >* **Time summary...**: Information of time cost  
+
+## Method
+ 
