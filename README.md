@@ -4,7 +4,7 @@
 > 1. Compile<br>
 >   **make**
 > 2. Run<br>
->   **chi -b "bam file path" -v "vcf file path" -o "output file path"**
+>   **PhaseingPartition -b "bam file path" -v "vcf file path" -o "output file path"**
 
 ## Output information
 >* **Minimum  movement**: The minimum cost for parition problem
@@ -12,5 +12,7 @@
 >* **Largest block...**: Information of largest block 
 >* **Time summary...**: Information of time cost  
 
-## Method
+## Reference
+>
+
  

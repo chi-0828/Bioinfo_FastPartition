@@ -20,7 +20,7 @@ private:
 
     // start our phasing algorithm. by GARY 2021-1-13  
     // recommend rename snp to all_snp_table or full_snp_table
-	Kernel snp;
+	Kernel kernel_table;
 
 	void compute_table();
 

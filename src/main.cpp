@@ -20,6 +20,8 @@ int main(int argc , char**argv){
     //processing arg
     arg(argc,argv);
 
+    
+
 }
 
 void arg(int argc , char**argv){

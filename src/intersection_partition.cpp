@@ -23,10 +23,10 @@ Intersection_partition::Intersection_partition(ReadSet* read_set, const vector<u
         read_sourceID_Name.push_back(pair<unsigned int , string>(read_set->get(i)->getSourceID() , read_set->get(i)->getName()));
 	}
 
-    cout<<"Get the final position of each read .... \n";
     for(auto read_id_name : read_sourceID_Name){
         auto Read = read_set->getByName(read_id_name.second,read_id_name.first);
-        snp.read_last_pos.push_back(Read->lastPosition());
+        kernel_table.read_first_pos.push_back(Read->firstPosition());
+        kernel_table.read_last_pos.push_back(Read->lastPosition());
     }
 
     cout<<"Start algorithm\n";
@@ -43,8 +43,8 @@ unique_ptr<vector<unsigned int> > Intersection_partition::extract_read_ids(const
 void Intersection_partition::compute_table() {
     // go to start point
 	input_column_iterator.jump_to_column(0);
-    snp.positions = input_column_iterator.get_positions();
-    snp.snp_size = snp.positions->size();
+    kernel_table.positions = input_column_iterator.get_positions();
+    kernel_table.snp_size = kernel_table.positions->size();
     
     // calculate time cost
     double assenble_s=0;
@@ -60,44 +60,46 @@ void Intersection_partition::compute_table() {
 	unique_ptr<vector<unsigned int> > next_read_ids = extract_read_ids(*next_input_column);
     // start our phasing algorithm. 
     // by GARY 2021-1-13
-    while (snp.snp_iterator < snp.snp_size-1) {
-        //cout<<"snp : "<<snp.positions->at(snp.snp_iterator)<<endl;
+    while (kernel_table.snp_iterator < kernel_table.snp_size-1) {
+        //cout<<"snp : "<<kernel_table.positions->at(kernel_table.snp_iterator)<<endl;
         // store info for debug (mutiple path)
         //map<int,vector<int>> temp_map;
-        //snp.mutiple_choose.insert(pair<int,map<int,vector<int>>>(snp.snp_iterator,temp_map));
+        //kernel_table.mutiple_choose.insert(pair<int,map<int,vector<int>>>(kernel_table.snp_iterator,temp_map));
         ///////////////////////////////////////////////////////////////////////////////////////
         // current_input_column parameter will store each SNP and it mapped reads
         current_input_column = std::move(next_input_column);
         // get some information that we need.
         // i.e. read_id, read_genotype (0 or 1)
-        if(snp.snp_iterator == 0){
-            snp.get_read_info(current_input_column,snp.snp_iterator);
+        if(kernel_table.snp_iterator == 0){
+            kernel_table.get_read_info(current_input_column,kernel_table.snp_iterator);
+            kernel_table.blockset.add_block(new Block(kernel_table.positions->at(kernel_table.snp_iterator) , kernel_table.block_num++));
+            kernel_table.block_size = 1;
         }
         if (input_column_iterator.has_next()) {
             next_input_column = input_column_iterator.get_next();
 		    next_read_ids = extract_read_ids(*next_input_column);
             /* Get next column read ID */
-            snp.get_read_info(next_input_column,snp.snp_iterator+1);
+            kernel_table.get_read_info(next_input_column,kernel_table.snp_iterator+1);
         }
         //after first snp
         //do partition in current snp
         auto begin = std::chrono::high_resolution_clock::now();
-        snp.partition();
+        kernel_table.partition();
         auto end = std::chrono::high_resolution_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
         partition_s += elapsed.count();
 
         //build encode
         begin = std::chrono::high_resolution_clock::now();
-        if(snp.snp_iterator != 0){
-            snp.build_table(PREVIOUS);
+        if(kernel_table.snp_iterator != 0){
+            kernel_table.build_table(PREVIOUS);
             end = std::chrono::high_resolution_clock::now();
             elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
             build_s += elapsed.count();
             // combine two partition together, this parameter will store all appear read id.
             // In order to trace back to the best path in the future.
             begin = std::chrono::high_resolution_clock::now();
-            snp.assemble();
+            kernel_table.assemble();
             end = std::chrono::high_resolution_clock::now();
             elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
             assenble_s += elapsed.count();
@@ -107,29 +109,28 @@ void Intersection_partition::compute_table() {
             // minimum cost is the best result in the end
             if(!input_column_iterator.has_next()){
                 // in order to find minimum cost, init a big value
-                unsigned long long  min = snp.current_snp_movement.at(0);
+                unsigned long long  min = kernel_table.current_snp_movement.at(0);
                 int best_pos_tmp = -1;
-                for(auto const map:snp.current_snp_movement){
-                    if(map.second >= 0)
-                        if(map.second <= min){
-                            min = std::move(map.second);
-                            best_pos_tmp =std::move( map.first);
-                        }
+                for(auto const map:kernel_table.current_snp_movement){
+                    if(map.second <= min){
+                        min = std::move(map.second);
+                        best_pos_tmp =std::move( map.first);
+                    }
                 }
                 cout<<"best partition ID : "<<best_pos_tmp<<endl;
                 cout<<"minimum  movement : "<<min<<endl;
-                snp.best_pos = best_pos_tmp;
+                kernel_table.best_pos = best_pos_tmp;
                 break;
             }
         }
         //find same
         if(input_column_iterator.has_next()){
             begin = std::chrono::high_resolution_clock::now();
-            if(snp.snp_iterator == 0){
-                snp.find_same_reads();
+            if(kernel_table.snp_iterator == 0){
+                kernel_table.find_same_reads();
             }
             else{
-                snp.find_same_reads_in_accumlate();
+                kernel_table.find_same_reads_in_accumlate();
             }
             end = std::chrono::high_resolution_clock::now();
             elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
@@ -137,12 +138,12 @@ void Intersection_partition::compute_table() {
         }
         //build encode for next round
         begin = std::chrono::high_resolution_clock::now();
-        snp.build_table(NEXT);
+        kernel_table.build_table(NEXT);
         end = std::chrono::high_resolution_clock::now();
         elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
         build_s += elapsed.count();
 
-        snp.pass_data();
+        kernel_table.pass_data();
 
         //getchar();
     }
@@ -172,21 +173,21 @@ std::pair<Read*,Read*> Intersection_partition::get_outputread() {
     // by GARY 2021-03-02  
     // find best answer for partition
     auto begin = std::chrono::high_resolution_clock::now();
-    snp.trace();
+    kernel_table.trace();
     auto end = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
     cout << setiosflags(ios::left)<< setw(40) << "trace: " << fixed<<setprecision(2)  << elapsed.count() * 1e-9 <<"s"<<endl;
     // using answer to parition 
     // two group : readset1 and readset2
     begin = std::chrono::high_resolution_clock::now();
-    snp.using_best_answer_separate_two_group();
+    kernel_table.using_best_answer_separate_two_group();
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
     cout << setiosflags(ios::left)<< setw(40) << "using_best_answer_separate_two_group: " << fixed<<setprecision(2)  << elapsed.count() * 1e-9 <<"s"<<endl;
 
     // depend on those error partition , redo it again 
     begin = std::chrono::high_resolution_clock::now();
-    snp.re_partition();
+    kernel_table.re_partition();
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
     cout << setiosflags(ios::left)<< setw(40) << "re_partition: " << fixed<<setprecision(2)  << elapsed.count() * 1e-9 <<"s"<<endl;
@@ -194,18 +195,18 @@ std::pair<Read*,Read*> Intersection_partition::get_outputread() {
 
     // start write output string
     begin = std::chrono::high_resolution_clock::now();
-    for(int i = 0;i <snp.snp_size -1;++i){
+    for(unsigned int i = 0;i <kernel_table.snp_size -1;++i){
 
         int value_a = -1;
         int value_b = -1;
         // stroe value to superread
-        snp.determine_value_depend_on_group(value_a ,value_b,i);
+        kernel_table.determine_value_depend_on_group(value_a ,value_b,i);
         if(value_a == -1 || value_b==-1 || (value_a==value_b)){
             cout<<value_a<<"!\n";
         }
 
-		ouputread.first->addVariant((snp.positions->at(i)),value_a, 0);
-		ouputread.second->addVariant((snp.positions->at(i)), value_b, 0);
+		ouputread.first->addVariant((kernel_table.positions->at(i)),value_a, 0);
+		ouputread.second->addVariant((kernel_table.positions->at(i)), value_b, 0);
 
     }
 
@@ -223,12 +224,12 @@ std::pair<Read*,Read*> Intersection_partition::get_outputread() {
 
     file.open("gary_test/reads.txt", ios::out|ios::trunc);
     file<<"readset1 :"<<endl;
-    for(int i=0;i<snp.readset1.size();i++){
-        file<<snp.readset1.at(i)<<" ";
+    for(int i=0;i<kernel_table.readset1.size();i++){
+        file<<kernel_table.readset1.at(i)<<" ";
     }
     file<<"\n\nreadset2 :"<<endl;
-    for(int i=0;i<snp.readset2.size();i++){
-        file<<snp.readset2.at(i)<<" ";
+    for(int i=0;i<kernel_table.readset2.size();i++){
+        file<<kernel_table.readset2.at(i)<<" ";
     }
     file<<"\n\n";
     file.close();*/

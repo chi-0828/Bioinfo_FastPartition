@@ -19,10 +19,12 @@
 
 #include "entry.h"
 #include "read.h"
+#include "block.h"
 using namespace std;
 using std::cout;
 using std::endl;
 typedef  std::map<int, vector<int>> bipartition;
+#define leading_bit_mask 0X7FFF
 #define NEXT 1
 #define PREVIOUS 0
 
@@ -42,19 +44,19 @@ public:
         reads_on_SNP.clear();
         snp_iterator = 0;
         inverse_state = false;
-
+        block_num = 0;
         // for 16-bits unsigned int
         //left_leading_bit_mask = 32767;2147483647;
-        left_leading_bit_mask = 2147483647;
+        //left_leading_bit_mask = 2147483647;
         //processor_count = std::thread::hardware_concurrency();
-    }/*
-    std::vector<std::pair<Read*,Read*>> superreads;
-    int chunk;
-    unsigned int processor_count ;*/
+    }
+    int block_num ;
+    int block_size ;
+    Blockset blockset;
 
     std::mutex partition_lock , movement_lock;
     // store end position of each read
-    std::vector<unsigned int> read_last_pos;
+    std::vector<unsigned int> read_last_pos , read_first_pos;
 
     // use to iterator all SNP 
     unsigned int snp_iterator; 
@@ -83,7 +85,7 @@ public:
     unordered_map <unsigned int , vector <pair< int, int>> >partition_move_two;
 
     // snp length
-    int snp_size ;
+    unsigned int snp_size ;
 
     // store reads ID on each snp 
     unordered_map < unsigned int, vector<ReadInfo>> reads_on_SNP;
@@ -93,7 +95,7 @@ public:
     // be used in change_bits()
     uint64_t size_mask , partition_mask;
     // mask for force left leading bit is 0
-    uint64_t left_leading_bit_mask ;
+    //uint64_t left_leading_bit_mask ;
 
     // for trace back and final partition 
     bool inverse_state ;
@@ -140,7 +142,7 @@ public:
     void make_encode(const int &pos,const uint64_t &enco);
 
     void supperread_th(int paritionID);
-    void lifehack();
+    //void lifehack();
 
     // trace back 
     // trace back -> find best path

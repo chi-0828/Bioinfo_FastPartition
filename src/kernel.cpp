@@ -5,7 +5,7 @@ void Kernel::partition(){
     //#pragma omp declare reduction (merge : std::map<int,unsigned int> : omp_out.insert(omp_out.end(), omp_in.begin(), omp_in.end()))
 
     //#pragma omp parallel for 
-    for(int partition_iterator=0;partition_iterator < reads_on_SNP.at(positions->at(snp_iterator)).size()+1;++partition_iterator){   
+    for(size_t partition_iterator=0;partition_iterator < reads_on_SNP.at(positions->at(snp_iterator)).size()+1;++partition_iterator){   
         auto snp_pos = positions->at(snp_iterator);
         // This table give the space of storing each partition for genotype 0 and 1
         bipartition table;
@@ -17,7 +17,7 @@ void Kernel::partition(){
 
         // insert table
         current_partition.insert(pair<int,bipartition>(partition_iterator,table));
-        int The_read_on_SNP=0;
+        size_t The_read_on_SNP=0;
 
         // to record the movement cost
         if(partition_iterator==0){
@@ -66,42 +66,41 @@ void Kernel::assemble_read(const int pro,int pre){
     //put reads together
     
     // start assemble
-    for(int i=0;i<previous_partition[pre][0].size();++i){
+    for(size_t i=0;i<previous_partition[pre][0].size();++i){
         // ignore read that has ended
         if(read_last_pos.at(previous_partition[pre][0][i]) < positions->at(snp_iterator)){
             //cout<<"ignore R:"<<previous_partition[pre][0][i]<<endl;
             continue;
         }
-        if(std::find(backward_intersect_read.begin(),backward_intersect_read.end(),previous_partition[pre][0][i]) == backward_intersect_read.end())
+        if(std::find(backward_intersect_read.begin(),backward_intersect_read.end(),previous_partition[pre][0][i]) == backward_intersect_read.end()){
             if(trace_back_partition.at(trace_back_partition.size()-1).at(pro))
                 current_partition[pro][1].push_back(previous_partition[pre][0][i]);
 
             else
                 current_partition[pro][0].push_back(previous_partition[pre][0][i]);
-
+        }
     }
-    for(int i=0;i<previous_partition.at(pre).at(1).size();++i){
+    for(size_t i=0;i<previous_partition.at(pre).at(1).size();++i){
         // ignore read that has ended
         if(read_last_pos.at(previous_partition[pre][1][i]) < positions->at(snp_iterator)){
             //cout<<"ignore R:"<<previous_partition[pre][1][i]<<endl;
             continue;
         }
-        if(std::find(backward_intersect_read.begin(),backward_intersect_read.end(),previous_partition[pre][1][i]) == backward_intersect_read.end())
+        if(std::find(backward_intersect_read.begin(),backward_intersect_read.end(),previous_partition[pre][1][i]) == backward_intersect_read.end()){
             if(trace_back_partition.at(trace_back_partition.size()-1).at(pro))
                 current_partition[pro][0].push_back(previous_partition[pre][1][i]);
 
             else
                 current_partition[pro][1].push_back(previous_partition[pre][1][i]);
-
+        }
     }
     //final -> sort
     insertionSort(current_partition[pro][1]);
     insertionSort(current_partition[pro][0]);
 }
 int Kernel::find_match_encode(int currentID , uint64_t encode){
-    unsigned int now_snp = positions->at(snp_iterator-1);
     int match_id = -1; 
-    int min_movement = 10000000;  //big number to find min cost
+    auto min_movement = previous_snp_movement[0];  //to find min cost
     int inverse = 0;
     for(auto const& imap: encode_on_pre_partition){
         get_masks(imap.first , 1);
@@ -114,7 +113,7 @@ int Kernel::find_match_encode(int currentID , uint64_t encode){
                 }
                 match_id = imap.first;
                 min_movement = previous_snp_movement[imap.first];
-                if(imap.second == encode&size_mask)
+                if(imap.second == (encode&size_mask))
                     inverse = 0;
                 else
                     inverse = 1;
@@ -141,7 +140,6 @@ void Kernel::assemble()
     unordered_map<int ,int> record_partition;
     trace_back_partition.push_back(record_partition);
 
-    int pre =0,cur=0;
     for(auto const& imap: encode_on_cur_partition){
         //cout<<"cur pos"<<imap.first<<endl;
         // store info for debug (mutiple path)
@@ -167,6 +165,22 @@ void Kernel::assemble()
             change_bits(imap.first,imap.second);
         }
     }
+    bool new_block = true;
+    for(auto &read : current_partition[0][0]){
+        if(read_first_pos[read] != positions->at(snp_iterator))
+            new_block = false;
+    }
+    for(auto &read : current_partition[0][1]){
+        if(read_first_pos[read] != positions->at(snp_iterator))
+            new_block = false;
+    }
+    if(new_block){
+        blockset.add_block(new Block(positions->at(snp_iterator),block_num) , positions->at(snp_iterator-1) , block_size+1);
+        block_num++;
+        block_size = 1;
+    }else{
+        block_size ++ ;
+    }
 }
 inline uint64_t POW(const unsigned int &e){
     uint64_t pow = 1 << e ; 
@@ -181,13 +195,13 @@ void Kernel::build_table(int flag){
     else{
         same = backward_intersect_read;
     }
-    int i =0;
+    size_t i =0;
     //cout<<flag<<" intersection size: "<<same.size()<<endl;
     while (i < current_partition.size()){
         uint64_t encode = 0;
 
         //build encode
-        for(int k=0;k<same.size();k++){
+        for(size_t k=0;k<same.size();k++){
             //cout<<k<<" : "<<same.at(k)<<endl;
             if(std::find(current_partition[i][0].begin(), current_partition[i][0].end(), same.at(k)) != current_partition[i][0].end()){
                 ;
@@ -213,7 +227,7 @@ inline int Kernel::count_bit(uint64_t &n){
         n >>= 1; 
         // Force the first bit from the left to 0
         // 32767 is a number for 16 bits operation , it can be adjust for select for reads
-        n = n & left_leading_bit_mask;
+        n = n & leading_bit_mask;
     } 
     return count;
 }
@@ -242,9 +256,9 @@ inline void Kernel::get_masks(int pre , int flag){
 }
 
 void Kernel::change_bits(int pos, const uint64_t &key_want_to_add){
-    //auto key_bits = bitset<16>(key_want_to_add);
-    int min = 1000000;
-    int cost = 1000000;
+
+    auto min = 100000000;
+    auto cost = encode_on_pre_partition[0];
     int pre;
     int change_value = 0;
     for(auto const& imap: encode_on_pre_partition){
@@ -327,7 +341,7 @@ void Kernel::find_same_reads(){
     unsigned int now_snp_name = positions->at(snp_iterator);
     unsigned int next_snp_name = positions->at(snp_iterator+1);
     
-    int i =0,j=0;
+    size_t i =0,j=0;
     while(i <reads_on_SNP.at(now_snp_name).size() && j <reads_on_SNP.at(next_snp_name).size()) {
         if(reads_on_SNP.at(now_snp_name).at(i).read_index == reads_on_SNP.at(next_snp_name).at(j).read_index){
             forward_intersect_read.push_back(move(reads_on_SNP.at(next_snp_name).at(j).read_index));
@@ -345,7 +359,7 @@ void Kernel::find_same_reads(){
 void Kernel::find_same_reads_in_accumlate(){
     forward_intersect_read.clear();
     unsigned int next_snp_name = positions->at(snp_iterator+1);
-    int i =0;
+    size_t i =0;
 
     while(i < reads_on_SNP[next_snp_name].size()) {
         if(std::find(current_partition[0][0].begin(),current_partition[0][0].end(),reads_on_SNP[next_snp_name][i].read_index) != current_partition[0][0].end()){
@@ -386,8 +400,10 @@ inline bool Kernel::inverse_value(int pos){
     return false;
 }
 void Kernel::trace(){
+    // accomplish block
+    blockset.add_block(new Block(0,-1) , positions->at(snp_size-1) , block_size);
     // start at the end
-    while(trace_back.size()>= 0){
+    while(1){
 
         best_answer.push_back(best_pos);
 
@@ -406,11 +422,11 @@ void Kernel::trace(){
 
 void Kernel::using_best_answer_separate_two_group() {
     
-    for(int snp_id = 0;snp_id <snp_size -1;++snp_id){
+    for(unsigned int snp_id = 0;snp_id <snp_size -1;++snp_id){
         if(inverse_value(snp_id)){
             inverse_state = !inverse_state;
         }
-        for(int read_id=0;read_id<reads_on_SNP.at(positions->at(snp_id)).size();++read_id){
+        for(size_t read_id=0;read_id<reads_on_SNP.at(positions->at(snp_id)).size();++read_id){
             //cout<<read_id<<endl;
             if(__check_group(snp_id,read_id,1)){
                 std::unordered_map <int, pair<int,int>>::iterator it = partition_read.find(reads_on_SNP.at(positions->at(snp_id)).at(read_id).read_index); 
@@ -433,25 +449,20 @@ void Kernel::using_best_answer_separate_two_group() {
 void Kernel::re_partition(){
     // parition again by mini movement
     
-    #pragma omp parallel 
-    {
-        #pragma  omp for
-        for(auto &read:partition_read){
-            
-            int readID = read.first;
-            int group_1 = read.second.first;
-            int group_2 = read.second.second;
-            //cout<<readID<<" G1: "<<group_1<<" G2: "<<group_2<<endl;
-            if(group_1 >= group_2){
-                #pragma omp atomic
-                readset.insert(pair<int, int>(readID,0));
-            }
-            else{
-                #pragma omp atomic
-                readset.insert(pair<int, int>(readID,1));
-            }
+    for(auto &read:partition_read){
+        
+        int readID = read.first;
+        int group_1 = read.second.first;
+        int group_2 = read.second.second;
+        //cout<<readID<<" G1: "<<group_1<<" G2: "<<group_2<<endl;
+        if(group_1 >= group_2){
+            readset.insert(pair<int, int>(readID,0));
+        }
+        else{
+            readset.insert(pair<int, int>(readID,1));
         }
     }
+    
 }
 void Kernel::determine_value_depend_on_group(int &value_a , int &value_b ,int snp_id){
     int count_A_0=0;
@@ -460,7 +471,7 @@ void Kernel::determine_value_depend_on_group(int &value_a , int &value_b ,int sn
     int count_B_1=0;
 
     //#pragma omp for reduction( +:count_A_0,count_A_1,count_B_0,count_B_1)
-    for(int k=0;k<reads_on_SNP.at(positions->at(snp_id)).size();++k){
+    for(size_t k=0;k<reads_on_SNP.at(positions->at(snp_id)).size();++k){
         if((readset.at(reads_on_SNP.at(positions->at(snp_id)).at(k).read_index)) == 0){
             if(reads_on_SNP.at(positions->at(snp_id)).at(k).genotype == '0'){
                 ++count_A_0;
@@ -495,7 +506,7 @@ void Kernel::get_read_info(unique_ptr<vector<const Entry *>>&input_column, int s
     vector<ReadInfo> readInfo_vec;
     // SNP position is a map index. map.at(index) is a read vector 
     reads_on_SNP.insert(pair<unsigned int , vector<ReadInfo>>(positions->at(snp_iterator) , readInfo_vec));
-    for(int read_iter =0;read_iter<input_column->size();++read_iter){
+    for(size_t read_iter =0;read_iter<input_column->size();++read_iter){
         ReadInfo readInfo_tmp;
         readInfo_tmp.cost = input_column->at(read_iter)->get_phred_score();
         readInfo_tmp.read_index = input_column->at(read_iter)->get_read_id();
@@ -536,31 +547,6 @@ void Kernel::pass_data(){
     snp_iterator++;
 }
 
-// Debugger fuction
-void Kernel::__check_partition(){
-    vector <int> allreads_on_snp;
-    for(int i=0;i<current_partition.size();i++){
-        allreads_on_snp.clear();
-        for(int j=0;j<current_partition.at(i).at(0).size();j++){
-            allreads_on_snp.push_back(current_partition.at(i).at(0).at(j));
-        }
-        for(int j=0;j<current_partition.at(i).at(1).size();j++){
-            allreads_on_snp.push_back(current_partition.at(i).at(1).at(j));
-        }
-        for(int j=0;j<allreads_on_snp.size()-1;j++){
-            if(allreads_on_snp.at(j) == allreads_on_snp.at(j+1))
-                cout<<"snp : "<<snp_iterator<<"\npartition : "<<i<<" ->"<<allreads_on_snp.at(j)<<endl;
-        }
-    }
-}
-void Kernel::__print_mutiple_choose(int snp,int pos){
-    fstream file;
-    file.open("gary_test/mutiple.txt", ios::app);
-    for(int i=0;i<mutiple_choose.at(snp).at(pos).size();++i){
-        file<<"snp : "<<positions->at(snp)<<endl;//"\n#"<<pos<<" can also choose "<<mutiple_choose.at(snp).at(pos).at(i)<<endl;
-    }
-    file.close();
-}
 inline bool Kernel::__check_group(int snp_id , int read_id , int type){
     //cout<<"now check "<<reads_on_SNP.at(positions->at(snp_id)).at(read_id).read_index<<endl;
     
@@ -590,7 +576,8 @@ inline bool Kernel::__check_group(int snp_id , int read_id , int type){
 }
 void Kernel::insertionSort(vector<int> &data){
     //auto begin = std::chrono::high_resolution_clock::now();
-    int i, j, tmp;
+    size_t i, j;
+    int tmp;
     for(i = 1; i < data.size(); i++){
         tmp = data[i];
         for( j=i; j > 0 && tmp < data[j-1]; j-- )
