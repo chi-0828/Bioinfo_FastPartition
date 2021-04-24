@@ -8,62 +8,47 @@
 #include <cstdio>
 #include <vector>
 #include <fstream>
+#include <chrono>
+#include <sys/resource.h>
 
-#include "../arg/argparse.hpp"
-#include "intersection_partition.h"
+#include "kernel/intersection_partition.h"
+#include "phasing/Phasing.h"
 
-#define PRINT(x) cout<<x<<endl
-void arg(int argc , char**argv);
+#define PROGRAM_BIN "main"
 
-int main(int argc , char**argv){
+static const char *STRIDE_USAGE_MESSAGE =
+"Usage: " PROGRAM_BIN " <command> [options]\n"  
+"               phasing      test\n"
+"\n";
 
-    //processing arg
-    arg(argc,argv);
+int main(int argc, char** argv)
+{
+    int who = RUSAGE_SELF;
+    struct rusage usage;
+    int ret;
+    auto begin = std::chrono::high_resolution_clock::now();
 
-    
-
-}
-
-void arg(int argc , char**argv){
-    cxxopts::Options options("quickphasing", "Itersection pahsing");
-    options.add_options()
-    ("r,reference", "File name", cxxopts::value<std::string>())
-    ("b,bam", "File name", cxxopts::value<std::string>())
-    ("v,vcf", "File name", cxxopts::value<std::string>())
-    ("0,output", "File name", cxxopts::value<std::string>())
-    ("h,help", "Print usage")
-    ;
-
-    auto result = options.parse(argc, argv);
-
-    if (result.count("help"))
+   
+    if(argc <= 1)
     {
-      std::cout << options.help() << std::endl;
-      exit(0);
+        std::cout << STRIDE_USAGE_MESSAGE;
+        return 0;
     }
-    string reference , bam ,vcf ,outputfile;
-    if (result.count("reference"))
-        reference = result["reference"].as<string>();
-    else
-        PRINT("No reference file");
-    if (result.count("bam"))
-        bam = result["bam"].as<string>();
-    else{
-        PRINT("Please input bam file path");
-        exit(1);
-    }
-    if (result.count("vcf"))
-        vcf = result["vcf"].as<string>();
-    else{
-        PRINT("Please input vcf file path");
-        exit(1);
-    }
-    if (result.count("output"))
-        outputfile = result["output"].as<string>();
-    else{
-        PRINT("Please input output file path");
-        exit(1);
+    
+    std::string command(argv[1]);
+    
+    if(command=="phasing")
+    {
+        PhasingMain(argc - 1, argv + 1);
     }
 
-    cout<<reference<<bam<<vcf<<endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    auto welapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    cout << setiosflags(ios::left)<< setw(40) << "Time cost: " <<setprecision(2) << welapsed.count() * 1e-9 <<"s"<<endl;
+    ret = getrusage(who, &usage);
+    double m = (double)usage.ru_maxrss/(double)(1024*1024);
+    printf("Memory usage: %lf GB\n",m);
+    return 0;
 }
+
+

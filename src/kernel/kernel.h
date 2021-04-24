@@ -16,19 +16,18 @@
 #include <bits/stdc++.h> 
 #include <sstream>
 #include <chrono>
-
-#include "entry.h"
-#include "read.h"
+#include "../phasing/Util.h"
 #include "block.h"
+
 using namespace std;
-using std::cout;
-using std::endl;
-typedef  std::map<int, vector<int>> bipartition;
+
 #define leading_bit_mask 0X7FFF
 #define NEXT 1
 #define PREVIOUS 0
 
-class ReadInfo{
+typedef  std::map<int, vector<int>> bipartition;
+
+struct ReadInfo{
 public:
     // read_index (read ID from whatshap)
     int read_index;
@@ -41,20 +40,18 @@ public:
 class Kernel{
 public:
     Kernel(){
-        reads_on_SNP.clear();
+        positions = new vector<unsigned int>();
         snp_iterator = 0;
         inverse_state = false;
         block_num = 0;
-        // for 16-bits unsigned int
-        //left_leading_bit_mask = 32767;2147483647;
-        //left_leading_bit_mask = 2147483647;
-        //processor_count = std::thread::hardware_concurrency();
+    }
+    ~Kernel(){
+        delete positions;
     }
     int block_num ;
     int block_size ;
     Blockset blockset;
 
-    std::mutex partition_lock , movement_lock;
     // store end position of each read
     std::vector<unsigned int> read_last_pos , read_first_pos;
 
@@ -79,10 +76,10 @@ public:
     int best_pos;
 
     // snp position info 
-    const vector<unsigned int>* positions;
+    vector<unsigned int>* positions;
 
     // change two tool
-    unordered_map <unsigned int , vector <pair< int, int>> >partition_move_two;
+    //unordered_map <unsigned int , vector <pair< int, int>> >partition_move_two;
 
     // snp length
     unsigned int snp_size ;
@@ -90,12 +87,10 @@ public:
     // store reads ID on each snp 
     unordered_map < unsigned int, vector<ReadInfo>> reads_on_SNP;
 
-    std::vector< string> all_snp;
+    //std::vector< string> all_snp;
 
     // be used in change_bits()
-    uint64_t size_mask , partition_mask;
-    // mask for force left leading bit is 0
-    //uint64_t left_leading_bit_mask ;
+    uint64_t size_mask , partition_mask ;
 
     // for trace back and final partition 
     bool inverse_state ;
@@ -104,7 +99,11 @@ public:
     std::vector<unordered_map <int,int>> trace_back;
     vector<unordered_map<int,int>> trace_back_partition;
     vector<int> best_answer;
+    unordered_map  <int , pair<int,int>> partition_read;
 
+    // get read info on snp
+    void get_read_info(int snp_iterator);
+    
     // patition on each SNP
     void partition();
 
@@ -113,11 +112,7 @@ public:
     
     // pass data to next SNP
     void pass_data();
-    // get reads information on a SNP(snp_iterator)
-    void get_read_info(unique_ptr<vector<const Entry *>>& input_column, int snp_iterator);
-    // check if inverse happen on the SNP(iterator)
-    
-    
+       
     // find intersection SNP(0-1)
     void find_same_reads();
     // find intersection SNP(1-M)
@@ -154,14 +149,6 @@ public:
     // check if read is moved in kth parition on SNP(iterator)
     bool find_read_in_parition(int k , int iterator);
 
-    // debug function and data strcture
-    // record miss count
-    map <int , int> final_partition;
-    unordered_map  <int , pair<int,int>> partition_read;
-    //unordered_map  <int , int> partition_original;
-    map <int , map<int,vector<int>>> mutiple_choose;
-    void __print_mutiple_choose(int snp,int pos);
-    void __check_partition();
     bool __check_group(int snp_id , int read_id, int type);
 };
 #endif

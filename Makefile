@@ -1,6 +1,6 @@
 #### PROJECT SETTINGS ####
 # The name of the executable to be created
-BIN_NAME := PhaseingPartition
+BIN_NAME := FastPartition
 # Compiler used
 CXX ?= g++
 # Extension of source files used in the project
@@ -9,16 +9,16 @@ SRC_EXT = cpp
 SRC_PATH = src
 # Space-separated pkg-config libraries used by this project
 LIBS = 
-# General compiler flags
-COMPILE_FLAGS = -std=c++11 -Wall -Wextra -g -O3
+# General compiler flags 
+COMPILE_FLAGS = -std=c++11 -O3 -Wall -Wextra
 # Additional release-specific flags
 RCOMPILE_FLAGS = -D NDEBUG
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -D DEBUG
 # Add additional include paths
-INCLUDES = -I $(SRC_PATH)
+INCLUDES = -I $(SRC_PATH) -I /bip6_disk/asonj2020/htslib/htslib -I /bip6_disk/asonj2020/htslib
 # General linker settings
-LINK_FLAGS =
+LINK_FLAGS = -L /bip6_disk/asonj2020/htslib/htslib -L /bip6_disk/asonj2020/htsli -lhts
 # Additional release-specific linker settings
 RLINK_FLAGS =
 # Additional debug-specific linker settings

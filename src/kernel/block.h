@@ -41,13 +41,14 @@ public:
         for(auto b : overall_block){
             delete[] b;
         }
-        std::cout<<"end\n";
     }
     string find_largest_block();
 
     int get_size();
 
     void add_block(Block *block , int pre_end = 0 , int len = 0);
+
+    Block* get(int pos);
 
     friend std::ostream& operator<<(std::ostream& out, const Blockset& e);
 };

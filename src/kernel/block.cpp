@@ -35,6 +35,15 @@ void Blockset::add_block(Block *block , int pre_end, int len ){
         overall_block[ID-1]->set_len(len);
     }
 }
+Block* Blockset::get(int pos){
+    return overall_block.at(pos);
+}
+std::ostream& operator<<(std::ostream& out, const Blockset& b) {
+    for(auto block : b.overall_block)
+	    out << block->toString() <<endl ;
+    
+	return out;
+}
 
 //Block::
 int Block::getID(){
@@ -58,12 +67,6 @@ void Block::set_end(int end_pos){
 }
 void Block::set_len(int len){
     this->len = len;
-}
-std::ostream& operator<<(std::ostream& out, const Blockset& b) {
-    for(auto block : b.overall_block)
-	    out << block->toString() <<endl ;
-    
-	return out;
 }
 string Block::toString() {
     ostringstream out ;
